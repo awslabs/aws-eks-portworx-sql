@@ -1,0 +1,14 @@
+# https://docs.portworx.com/scheduler/kubernetes/snaps-3d.html
+apiVersion: stork.libopenstorage.org/v1alpha1
+kind: Rule
+metadata:
+  name: px-mssql-postsnap-rule
+spec:
+  - podSelector:
+      # Will be replaced by CmdLet Automation
+      app: <appName>
+    actions:
+    - type: command
+      # This command would be anything that would need to happen
+      # after the snapshot is taken such as an "syncUnlock()"
+      value: <TODO>

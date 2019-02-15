@@ -1,0 +1,13 @@
+# This consistent snapshot group will snapshot ALL
+# volumes with label `mssql-group: mssql-data`
+# as a consistent portworx local snapgroup
+apiVersion: volumesnapshot.external-storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: mssql-snapshot-group
+  namespace: default
+  annotations:
+    portworx/snapshot-type: local
+    portworx.selector/mssql-group: mssql-data
+spec:
+  persistentVolumeClaimName: mssql-tools-workspace

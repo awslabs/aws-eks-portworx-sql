@@ -1,0 +1,17 @@
+# https://docs.portworx.com/scheduler/kubernetes/snaps-3d.html
+apiVersion: stork.libopenstorage.org/v1alpha1
+kind: Rule
+metadata:
+  name: px-mssql-presnap-rule
+spec:
+  - podSelector:
+      # Will be replaced by CmdLet Automation
+      app: <appName>
+    actions:
+    - type: command
+      # If true, the action will run in background and will be terminated 
+      # by Stork after the snapshot has been initiated. 
+      # If false, the action will first complete and then the snapshot will get initiated.
+      #background: true
+      # some command to quiesce or flush any read locks
+      value: <TODO>

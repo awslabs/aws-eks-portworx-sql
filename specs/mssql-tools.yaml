@@ -1,0 +1,46 @@
+
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: "mssql-tools-workspace"
+  annotations:
+    volume.beta.kubernetes.io/storage-class: "portworx-sc"
+  labels:
+    mssql-group:  "mssql-data"
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: "1Gi"
+
+---
+
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: mssql-tools
+  labels:
+    purpose: mssql-tools
+spec:
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: mssql-tools
+    spec:
+      containers:
+      - name: mssqltools
+        image: mcr.microsoft.com/mssql-tools
+        volumeMounts:
+        - name: mssql-tools-workspace
+          mountPath: /mnt
+      volumes:
+      - name: mssql-tools-workspace
+        persistentVolumeClaim:
+          claimName: mssql-tools-workspace

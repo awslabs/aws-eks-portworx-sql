@@ -1,0 +1,142 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "This workload template deploys an EKS cluster.",
+    "Metadata": {
+        "AWS::CloudFormation::Interface": {
+            "ParameterGroups": [
+                {
+                    "Label": {
+                        "default": "Network Configuration"
+                    },
+                    "Parameters": [
+                        "VPCID",
+                        "SubnetIDs",
+						"SecurityGroupID"
+                    ]
+                },
+                {
+                    "Label": {
+                        "default": "Amazon EKS Configuration"
+                    },
+                    "Parameters": [
+                        "ClusterName"
+                    ]
+                }
+            ],
+            "ParameterLabels": {
+                "SecurityGroupID": {
+                    "default": "Bastion Security Group ID"
+                },
+                "SubnetIDs": {
+                    "default": "Private Subnet IDs"
+                },
+                "VPCID": {
+                    "default": "VPC ID"
+                },
+                "ClusterName": {
+                    "default": "EKS cluster name"
+                }
+            }
+        }
+    },
+    "Parameters": {
+        "SecurityGroupID": {
+            "Description": "ID of the bastion host security group to enable SSH connections (e.g., sg-7f16e910)",
+            "Type": "AWS::EC2::SecurityGroup::Id"
+        },
+        "SubnetIDs": {
+            "Description": "ID of private subnets in Availability Zones for the EKS cluster (e.g., subnet-a0246dcd)",
+            "Type": "List<AWS::EC2::Subnet::Id>"
+        },
+        "VPCID": {
+            "Description": "ID of your existing VPC for deployment",
+            "Type": "AWS::EC2::VPC::Id"
+        },
+        "ClusterName": {
+            "Default": "mssqlcluster",
+            "Description": "The EKS cluster name",
+            "Type": "String"
+        }
+    },
+    "Rules": {        
+        "SubnetsInVPC": {
+            "Assertions": [
+                {
+                    "Assert": {
+                        "Fn::EachMemberIn": [
+                            {
+                                "Fn::ValueOfAll": [
+                                    "AWS::EC2::Subnet::Id",
+                                    "VpcId"
+                                ]
+                            },
+                            {
+                                "Fn::RefAll": "AWS::EC2::VPC::Id"
+                            }
+                        ]
+                    },
+                    "AssertDescription": "All subnets must be in the VPC"
+                }
+            ]
+        }
+    },
+    "Resources": {
+        "EKSRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                        "Version": "2012-10-17",
+                        "Statement": {
+						    "Effect": "Allow",
+						    "Principal": {
+                                    "Service": [
+                                    "eks.amazonaws.com"
+                                ]
+						    },
+						    "Action": "sts:AssumeRole"
+                        }
+				    },
+				    "ManagedPolicyArns": [
+                        "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy",
+                        "arn:aws:iam::aws:policy/AmazonEKSServicePolicy"
+				    ]
+                }
+            },
+        "EKSCluster": {
+            "Type": "AWS::EKS::Cluster",
+            "Properties": {
+                "Name": {
+                    "Ref": "ClusterName"
+                },
+                "Version": "1.10",
+                "RoleArn": { "Fn::GetAtt": ["EKSRole", "Arn"] },
+                "ResourcesVpcConfig": {
+				  "SecurityGroupIds": [
+                      { "Ref": "SecurityGroupID" }
+				  ],
+				  "SubnetIds": { "Ref": "SubnetIDs" }
+                }
+            }
+        }
+    },
+    "Outputs": {
+        "EKSClusterEndpoint": {
+            "Description": "EKS cluster endpoint",
+            "Value": {
+                "Fn::GetAtt": [
+                    "EKSCluster",
+                    "Endpoint"
+                ]
+            }
+        },
+		"EKSClusterCertificate": {
+            "Description": "EKS cluster certificate",
+            "Value": {
+                "Fn::GetAtt": [
+                    "EKSCluster",
+                    "CertificateAuthorityData"
+                ]
+            }
+        }
+    }
+}

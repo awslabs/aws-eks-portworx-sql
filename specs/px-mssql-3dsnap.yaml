@@ -1,0 +1,11 @@
+apiVersion: volumesnapshot.external-storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  # <PVCName> Will be replaced by CmdLet Automation
+  name: <PVCName>-3d-snapshot
+  annotations:
+    stork.rule/pre-snapshot: px-mssql-3d-presnap-rule.yaml
+    stork.rule/post-snapshot: px-mssql-3d-postsnap-rule.yaml
+spec:
+  # <PVCName> Will be replaced by CmdLet Automation
+  persistentVolumeClaimName: <PVCName>

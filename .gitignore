@@ -1,0 +1,8 @@
+.DS_store
+kubectl
+aws-iam-authenticator
+aws-auth-cm.yaml
+px-spec.yaml
+sqldeployment.yaml
+px-mssql-storage-class.yaml
+PVC.yaml

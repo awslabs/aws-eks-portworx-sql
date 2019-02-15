@@ -1,0 +1,459 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "ETCD stack on CentOS.   06/11/2018",
+	"Mappings": {
+		"RegionMap": {
+			"ap-northeast-1": {
+				"AMI": "ami-25bd2743"
+			},
+			"ap-northeast-2": {
+				"AMI": "ami-7248e81c"
+			},
+			"ap-south-1": {
+				"AMI": "ami-5d99ce32"
+			},
+			"ap-southeast-1": {
+				"AMI": "ami-d2fa88ae"
+			},
+			"ap-southeast-2": {
+				"AMI": "ami-b6bb47d4"
+			},
+			"ca-central-1": {
+				"AMI": "ami-dcad28b8"
+			},
+			"eu-central-1": {
+				"AMI": "ami-337be65c"
+			},
+			"eu-west-1": {
+				"AMI": "ami-6e28b517"
+			},
+			"eu-west-2": {
+				"AMI": "ami-ee6a718a"
+			},
+			"eu-west-3": {
+				"AMI": "ami-bfff49c2"
+			},
+			"sa-east-1": {
+				"AMI": "ami-f9adef95"
+			},
+			"us-east-1": {
+				"AMI": "ami-4bf3d731"
+			},
+			"us-east-2": {
+				"AMI": "ami-e1496384"
+			},
+			"us-west-1": {
+				"AMI": "ami-65e0e305"
+			},
+			"us-west-2": {
+				"AMI": "ami-a042f4d8"
+			}
+		}
+	},
+	"Parameters": {
+		"ETCDVersion": {
+			"Description": "Specify ETCD Version, default 3.3.1",
+			"Type": "String",
+			"Default": "3.3.1"
+		},
+		"InstanceType": {
+			"Description": "EC2 HVM instance type (m3.medium, etc).",
+			"Type": "String",
+			"Default": "t2.large",
+			"AllowedValues": [
+				"t2.medium",
+				"t2.large"
+			],
+			"ConstraintDescription": "Must be a valid EC2 HVM instance type."
+		},
+		"DiscoveryURL": {
+			"Description": "An unique etcd cluster discovery URL. Grab a new token from https://discovery.etcd.io/new?size=3",
+			"Type": "String",
+			"AllowedPattern": ".+"
+		},
+		"AllowSSHFrom": {
+			"Description": "The net block (CIDR) that SSH is available to.",
+			"Default": "0.0.0.0/0",
+			"Type": "String"
+		},
+		"KeyPair": {
+			"Description": "The name of an EC2 Key Pair to allow SSH access to the instance.",
+			"Type": "AWS::EC2::KeyPair::KeyName",
+			"AllowedPattern": ".+"
+		},
+		"AvailabilityZoneA": {
+			"Type": "AWS::EC2::AvailabilityZone::Name",
+			"Default": "us-east-1a",
+			"Description": "Name of the first availability zone in which the instances will be created, default us-east-1a."
+		},
+		"AvailabilityZoneB": {
+			"Type": "AWS::EC2::AvailabilityZone::Name",
+			"Default": "us-east-1b",
+			"Description": "Name of the first availability zone in which the instances will be created, default us-east-1b."
+		},
+		"AvailabilityZoneC": {
+			"Type": "AWS::EC2::AvailabilityZone::Name",
+			"Default": "us-east-1c",
+			"Description": "Name of the first availability zone in which the instances will be created, default us-east-1c."
+		}
+	},
+	"Resources": {
+		"PortworxETCDSecurityGroup": {
+			"Type": "AWS::EC2::SecurityGroup",
+			"Properties": {
+				"GroupDescription": "Portworx ETCD SecurityGroup",
+				"SecurityGroupIngress": [{
+					"IpProtocol": "tcp",
+					"FromPort": "22",
+					"ToPort": "22",
+					"CidrIp": {
+						"Ref": "AllowSSHFrom"
+					}
+				}]
+			},
+			"Metadata": {
+				"AWS::CloudFormation::Designer": {
+					"id": "c0fb554a-6d51-4a18-b6a1-a2b81d779e95"
+				}
+			}
+		},
+		"Ingress2379": {
+			"Type": "AWS::EC2::SecurityGroupIngress",
+			"Properties": {
+				"GroupName": {
+					"Ref": "PortworxETCDSecurityGroup"
+				},
+				"IpProtocol": "tcp",
+				"FromPort": "2379",
+				"ToPort": "2379",
+				"SourceSecurityGroupId": {
+					"Fn::GetAtt": [
+						"PortworxETCDSecurityGroup",
+						"GroupId"
+					]
+				}
+			}
+		},
+		"Ingress2380": {
+			"Type": "AWS::EC2::SecurityGroupIngress",
+			"Properties": {
+				"GroupName": {
+					"Ref": "PortworxETCDSecurityGroup"
+				},
+				"IpProtocol": "tcp",
+				"FromPort": "2380",
+				"ToPort": "2380",
+				"SourceSecurityGroupId": {
+					"Fn::GetAtt": [
+						"PortworxETCDSecurityGroup",
+						"GroupId"
+					]
+				}
+			}
+		},
+		"Ec2Instance01": {
+			"Type": "AWS::EC2::Instance",
+			"Properties": {
+				"AvailabilityZone": {
+					"Ref": "AvailabilityZoneA"
+				},
+				"ImageId": {
+					"Fn::FindInMap": [
+						"RegionMap",
+						{
+							"Ref": "AWS::Region"
+						},
+						"AMI"
+					]
+				},
+				"InstanceType": {
+					"Ref": "InstanceType"
+				},
+				"KeyName": {
+					"Ref": "KeyPair"
+				},
+				"SecurityGroups": [{
+					"Ref": "PortworxETCDSecurityGroup"
+				}],
+				"BlockDeviceMappings": [{
+					"DeviceName": "/dev/xvdb",
+					"Ebs": {
+						"VolumeType": "io1",
+						"Iops": "3000",
+						"VolumeSize": "72",
+						"DeleteOnTermination": "false"
+					}
+				}],
+				"UserData": {
+					"Fn::Base64": {
+						"Fn::Join": ["", [
+							"#!/bin/bash -xe\n",
+							"etcdver=", {
+								"Ref": "ETCDVersion"
+							}, "\n",
+							"ETCD_VER=v$etcdver && curl -L https://storage.googleapis.com/etcd/${ETCD_VER}/etcd-${ETCD_VER}-linux-amd64.tar.gz -o /tmp/etcd.tar.gz", "\n",
+							"rm -rf /tmp/etcd && mkdir -p /tmp/etcd", "\n",
+							"tar xzvf /tmp/etcd.tar.gz -C /tmp/etcd --strip-components=1", "\n",
+							"cp /tmp/etcd/etcd /usr/local/bin/", "\n",
+							"cp /tmp/etcd/etcdctl /usr/local/bin/", "\n",
+							"mkdir /var/lib/etcd", "\n",
+							"mkfs.ext4 /dev/xvdb", "\n",
+							"mount /dev/xvdb /var/lib/etcd", "\n",
+							"echo '/dev/xvdb    /var/lib/etcd   ext4    defaults    0   0' >> /etc/fstab", "\n",
+							"export privateipv4=$(curl http://169.254.169.254/latest/meta-data/local-ipv4)", "\n",
+							"export PATH=$PATH:/usr/local/bin", "\n",
+							"discovery=", {
+								"Ref": "DiscoveryURL"
+							}, "\n",
+							"cat << EOF > /etc/systemd/system/etcd3.service", "\n",
+							"[Unit]", "\n",
+							"Description=etcd", "\n",
+							"Documentation=https://github.com/coreos/etcd", "\n",
+							"Conflicts=etcd.service", "\n",
+							"Conflicts=etcd2.service", "\n",
+							"\n",
+							"[Service]", "\n",
+							"Type=notify", "\n",
+							"Restart=always", "\n",
+							"RestartSec=25s", "\n",
+							"LimitNOFILE=40000", "\n",
+							"TimeoutStartSec=20s", "\n",
+							"ExecStart=/bin/sh -c '/usr/local/bin/etcd --name etcd-$privateipv4 --data-dir /var/lib/etcd --quota-backend-bytes 8589934592 --auto-compaction-retention 3 --listen-client-urls http://$privateipv4:2379,http://localhost:2379 --advertise-client-urls http://$privateipv4:2379,http://localhost:2379 --listen-peer-urls http://$privateipv4:2380 --initial-advertise-peer-urls http://$privateipv4:2380 --discovery $discovery --initial-cluster-token my-etcd-token --initial-cluster-state new'", "\n",
+							"\n",
+							"[Install]", "\n",
+							"WantedBy=multi-user.target", "\n",
+							"EOF", "\n",
+							"systemctl daemon-reload", "\n",
+							"systemctl enable etcd3", "\n",
+							"systemctl start etcd3"
+						]]
+					}
+				},
+				"Tags": [{
+					"Key": "Name",
+					"Value": {
+						"Ref": "AWS::StackName"
+					}
+				}]
+			}
+		},
+		"Ec2Instance02": {
+			"Type": "AWS::EC2::Instance",
+			"Properties": {
+				"AvailabilityZone": {
+					"Ref": "AvailabilityZoneB"
+				},
+				"ImageId": {
+					"Fn::FindInMap": [
+						"RegionMap",
+						{
+							"Ref": "AWS::Region"
+						},
+						"AMI"
+					]
+				},
+				"InstanceType": {
+					"Ref": "InstanceType"
+				},
+				"KeyName": {
+					"Ref": "KeyPair"
+				},
+				"SecurityGroups": [{
+					"Ref": "PortworxETCDSecurityGroup"
+				}],
+				"BlockDeviceMappings": [{
+					"DeviceName": "/dev/xvdb",
+					"Ebs": {
+						"VolumeType": "io1",
+						"Iops": "3000",
+						"VolumeSize": "72",
+						"DeleteOnTermination": "false"
+					}
+				}],
+				"UserData": {
+					"Fn::Base64": {
+						"Fn::Join": ["", [
+							"#!/bin/bash -xe\n",
+							"etcdver=", {
+								"Ref": "ETCDVersion"
+							}, "\n",
+							"ETCD_VER=v$etcdver && curl -L https://storage.googleapis.com/etcd/${ETCD_VER}/etcd-${ETCD_VER}-linux-amd64.tar.gz -o /tmp/etcd.tar.gz", "\n",
+							"rm -rf /tmp/etcd && mkdir -p /tmp/etcd", "\n",
+							"tar xzvf /tmp/etcd.tar.gz -C /tmp/etcd --strip-components=1", "\n",
+							"cp /tmp/etcd/etcd /usr/local/bin/", "\n",
+							"cp /tmp/etcd/etcdctl /usr/local/bin/", "\n",
+							"mkdir /var/lib/etcd", "\n",
+							"mkfs.ext4 /dev/xvdb", "\n",
+							"mount /dev/xvdb /var/lib/etcd", "\n",
+							"echo '/dev/xvdb    /var/lib/etcd   ext4    defaults    0   0' >> /etc/fstab", "\n",
+							"export privateipv4=$(curl http://169.254.169.254/latest/meta-data/local-ipv4)", "\n",
+							"export PATH=$PATH:/usr/local/bin", "\n",
+							"discovery=", {
+								"Ref": "DiscoveryURL"
+							}, "\n",
+							"cat << EOF > /etc/systemd/system/etcd3.service", "\n",
+							"[Unit]", "\n",
+							"Description=etcd", "\n",
+							"Documentation=https://github.com/coreos/etcd", "\n",
+							"Conflicts=etcd.service", "\n",
+							"Conflicts=etcd2.service", "\n",
+							"\n",
+							"[Service]", "\n",
+							"Type=notify", "\n",
+							"Restart=always", "\n",
+							"RestartSec=25s", "\n",
+							"LimitNOFILE=40000", "\n",
+							"TimeoutStartSec=20s", "\n",
+							"ExecStart=/bin/sh -c '/usr/local/bin/etcd --name etcd-$privateipv4 --data-dir /var/lib/etcd --quota-backend-bytes 8589934592 --auto-compaction-retention 3 --listen-client-urls http://$privateipv4:2379,http://localhost:2379 --advertise-client-urls http://$privateipv4:2379,http://localhost:2379 --listen-peer-urls http://$privateipv4:2380 --initial-advertise-peer-urls http://$privateipv4:2380 --discovery $discovery --initial-cluster-token my-etcd-token --initial-cluster-state new'", "\n",
+							"\n",
+							"[Install]", "\n",
+							"WantedBy=multi-user.target", "\n",
+							"EOF", "\n",
+							"systemctl daemon-reload", "\n",
+							"systemctl enable etcd3", "\n",
+							"systemctl start etcd3"
+						]]
+					}
+				},
+				"Tags": [{
+					"Key": "Name",
+					"Value": {
+						"Ref": "AWS::StackName"
+					}
+				}]
+			}
+		},
+		"Ec2Instance03": {
+			"Type": "AWS::EC2::Instance",
+			"Properties": {
+				"AvailabilityZone": {
+					"Ref": "AvailabilityZoneC"
+				},
+				"ImageId": {
+					"Fn::FindInMap": [
+						"RegionMap",
+						{
+							"Ref": "AWS::Region"
+						},
+						"AMI"
+					]
+				},
+				"InstanceType": {
+					"Ref": "InstanceType"
+				},
+				"KeyName": {
+					"Ref": "KeyPair"
+				},
+				"SecurityGroups": [{
+					"Ref": "PortworxETCDSecurityGroup"
+				}],
+				"BlockDeviceMappings": [{
+					"DeviceName": "/dev/xvdb",
+					"Ebs": {
+						"VolumeType": "io1",
+						"Iops": "3000",
+						"VolumeSize": "72",
+						"DeleteOnTermination": "false"
+					}
+				}],
+				"UserData": {
+					"Fn::Base64": {
+						"Fn::Join": ["", [
+							"#!/bin/bash -xe\n",
+							"etcdver=", {
+								"Ref": "ETCDVersion"
+							}, "\n",
+							"ETCD_VER=v$etcdver && curl -L https://storage.googleapis.com/etcd/${ETCD_VER}/etcd-${ETCD_VER}-linux-amd64.tar.gz -o /tmp/etcd.tar.gz", "\n",
+							"rm -rf /tmp/etcd && mkdir -p /tmp/etcd", "\n",
+							"tar xzvf /tmp/etcd.tar.gz -C /tmp/etcd --strip-components=1", "\n",
+							"cp /tmp/etcd/etcd /usr/local/bin/", "\n",
+							"cp /tmp/etcd/etcdctl /usr/local/bin/", "\n",
+							"mkdir /var/lib/etcd", "\n",
+							"mkfs.ext4 /dev/xvdb", "\n",
+							"mount /dev/xvdb /var/lib/etcd", "\n",
+							"echo '/dev/xvdb    /var/lib/etcd   ext4    defaults    0   0' >> /etc/fstab", "\n",
+							"export privateipv4=$(curl http://169.254.169.254/latest/meta-data/local-ipv4)", "\n",
+							"export PATH=$PATH:/usr/local/bin", "\n",
+							"discovery=", {
+								"Ref": "DiscoveryURL"
+							}, "\n",
+							"cat << EOF > /etc/systemd/system/etcd3.service", "\n",
+							"[Unit]", "\n",
+							"Description=etcd", "\n",
+							"Documentation=https://github.com/coreos/etcd", "\n",
+							"Conflicts=etcd.service", "\n",
+							"Conflicts=etcd2.service", "\n",
+							"\n",
+							"[Service]", "\n",
+							"Type=notify", "\n",
+							"Restart=always", "\n",
+							"RestartSec=25s", "\n",
+							"LimitNOFILE=40000", "\n",
+							"TimeoutStartSec=20s", "\n",
+							"ExecStart=/bin/sh -c '/usr/local/bin/etcd --name etcd-$privateipv4 --data-dir /var/lib/etcd --quota-backend-bytes 8589934592 --auto-compaction-retention 3 --listen-client-urls http://$privateipv4:2379,http://localhost:2379 --advertise-client-urls http://$privateipv4:2379,http://localhost:2379 --listen-peer-urls http://$privateipv4:2380 --initial-advertise-peer-urls http://$privateipv4:2380 --discovery $discovery --initial-cluster-token my-etcd-token --initial-cluster-state new'", "\n",
+							"\n",
+							"[Install]", "\n",
+							"WantedBy=multi-user.target", "\n",
+							"EOF", "\n",
+							"systemctl daemon-reload", "\n",
+							"systemctl enable etcd3", "\n",
+							"systemctl start etcd3"
+						]]
+					}
+				},
+				"Tags": [{
+					"Key": "Name",
+					"Value": {
+						"Ref": "AWS::StackName"
+					}
+				}]
+			}
+		}
+	},
+	"Metadata": {
+		"AWS::CloudFormation::Designer": {
+			"c0fb554a-6d51-4a18-b6a1-a2b81d779e95": {
+				"size": {
+					"width": 60,
+					"height": 60
+				},
+				"position": {
+					"x": 60,
+					"y": 90
+				},
+				"z": 1,
+				"embeds": []
+			},
+			"6b1067dd-cb21-4b9f-ae0e-0c3b65653835": {
+				"size": {
+					"width": 60,
+					"height": 60
+				},
+				"position": {
+					"x": 180,
+					"y": 90
+				},
+				"z": 1,
+				"embeds": [],
+				"ismemberof": [
+					"c0fb554a-6d51-4a18-b6a1-a2b81d779e95"
+				]
+			},
+			"d4a7eb53-d4ff-4056-a960-8acda0fe1549": {
+				"size": {
+					"width": 60,
+					"height": 60
+				},
+				"position": {
+					"x": 60,
+					"y": 210
+				},
+				"z": 1,
+				"embeds": [],
+				"isassociatedwith": [
+					"6b1067dd-cb21-4b9f-ae0e-0c3b65653835"
+				]
+			}
+		}
+	}
+}
